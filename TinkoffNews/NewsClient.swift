@@ -21,10 +21,9 @@ class NewsClient {
         self.session = session
     }
     
-    func fetchModerators(page: Int, completion: @escaping (Result<PagedModeratorResponse, DataResponseError>) -> Void) {
+    func fetchNews(page: Int, completion: @escaping (Result<PagedNewsResponse, DataResponseError>) -> Void) {
         
-        let urlRequest = URLRequest(url: baseURL.appendingPathComponent("pageSize=20&pageOffset=\(page)"))
-        
+        let urlRequest = URLRequest(url: URL(string : "\(baseURL)pageSize=20&pageOffset=\(page * 20)")!)
         session.dataTask(with: urlRequest, completionHandler: { data, response, error in
             
             guard
@@ -35,9 +34,8 @@ class NewsClient {
                     completion(Result.failure(DataResponseError.network))
                     return
             }
-            
-            
-            guard let decodedResponse = try? JSONDecoder().decode(PagedModeratorResponse.self, from: data) else {
+
+            guard let decodedResponse = try? JSONDecoder().decode(PagedNewsResponse.self, from: data) else {
                 completion(Result.failure(DataResponseError.decoding))
                 return
             }

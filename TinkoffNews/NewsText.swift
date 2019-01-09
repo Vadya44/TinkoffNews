@@ -7,3 +7,12 @@
 //
 
 import Foundation
+
+
+struct NewsText : Decodable {
+    let response : ResponseText
+}
+
+struct ResponseText : Decodable {
+    let text : String
+}

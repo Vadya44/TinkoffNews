@@ -7,13 +7,13 @@
 //
 
 import UIKit
+import CoreData
 
 class ViewController: UIViewController, AlertDisplayer {
     
-    var isFromCD = true
-    
     let appDelegate = UIApplication.shared.delegate as! AppDelegate
-    let context = appDelegate.persistentContainer.viewContext
+    
+    var isFromCD = true
     
     lazy var refreshControl: UIRefreshControl = {
         let refreshControl = UIRefreshControl()
@@ -32,12 +32,13 @@ class ViewController: UIViewController, AlertDisplayer {
     
     override func viewDidLoad() {
         super.viewDidLoad()
+        
         self.tableView.addSubview(self.refreshControl)
-        
-        indicatorView.color = UIColor.green
-        indicatorView.startAnimating()
-        
-        tableView.isHidden = true
+//        
+//        indicatorView.color = UIColor.green
+//        indicatorView.startAnimating()
+//        
+//        tableView.isHidden = true
         tableView.separatorColor = UIColor.green
         tableView.dataSource = self
         tableView.prefetchDataSource = self
@@ -70,6 +71,7 @@ extension ViewController : UITableViewDelegate, UITableViewDataSource {
         
         // Simply adding an object to the data source for this example
         self.isFromCD = false
+        self.deleteAllData("NewsEntity")
         viewModel = nil
         viewModel = NewsViewModel(delegate: self)
         viewModel.fetchNews()
@@ -97,10 +99,12 @@ extension ViewController : UITableViewDelegate, UITableViewDataSource {
         return cell
     }
     func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
-        let storyBoard: UIStoryboard = UIStoryboard(name: "Main", bundle: nil)
-        let newsVC = storyBoard.instantiateViewController(withIdentifier: "newsVC") as! NewsViewController
-        newsVC.news = viewModel.news(at: indexPath.row)
-        self.present(newsVC, animated: true, completion: nil)
+        if (!isLoadingCell(for: indexPath)) {
+            let storyBoard: UIStoryboard = UIStoryboard(name: "Main", bundle: nil)
+            let newsVC = storyBoard.instantiateViewController(withIdentifier: "newsVC") as! NewsViewController
+            newsVC.news = viewModel.news(at: indexPath.row)
+            self.present(newsVC, animated: true, completion: nil)
+        }
     }
 }
 
@@ -127,6 +131,53 @@ extension ViewController : NewsViewModelDelegate {
         displayAlert(with: title , message: reason, actions: [action])
         
     }
+    
+    func writeNewData(with news : [News]) {
+        if !isFromCD {
+            let appDelegate = UIApplication.shared.delegate as! AppDelegate
+            let context = appDelegate.persistentContainer.viewContext
+            
+            for next in news {
+                let entity = NSEntityDescription.entity(forEntityName: "NewsEntity", in: context)
+                let newNews = NSManagedObject(entity: entity!, insertInto: context)
+                newNews.setValue(next.slug, forKey: "slug")
+                newNews.setValue(next.title, forKey: "title")
+                newNews.setValue(next.reputation, forKey: "clickCounter")
+            }
+            
+            do {
+                try context.save()
+            } catch {
+                print("Failed saving")
+            }
+        }
+    }
+    
+    func getData() -> [News] {
+        let appDelegate = UIApplication.shared.delegate as! AppDelegate
+        
+        let context = appDelegate.persistentContainer.viewContext
+        
+        let request = NSFetchRequest<NSFetchRequestResult>(entityName: "NewsEntity")
+        request.returnsObjectsAsFaults = false
+        var newsArray = [News]()
+        do {
+            let result = try context.fetch(request)
+            for data in result as! [NSManagedObject] {
+                let title = data.value(forKey: "title") as! String
+                let slug = data.value(forKey: "slug") as! String
+                let count = data.value(forKey: "clickCounter") as! Int
+                let tempNews = News(displayName: title, reputation: count, id: "00", slug: slug)
+                newsArray.append(tempNews)
+            }
+            
+        } catch {
+            
+            print("Failed")
+        }
+        
+        return newsArray
+    }
 }
 
 
@@ -139,5 +190,25 @@ extension ViewController {
         let indexPathsForVisibleRows = tableView.indexPathsForVisibleRows ?? []
         let indexPathsIntersection = Set(indexPathsForVisibleRows).intersection(indexPaths)
         return Array(indexPathsIntersection)
+    }
+    
+    func deleteAllData(_ entity:String) {
+        let fetchRequest = NSFetchRequest<NSFetchRequestResult>(entityName: entity)
+        fetchRequest.returnsObjectsAsFaults = false
+        do {
+            let appDelegate = UIApplication.shared.delegate as! AppDelegate
+            let context = appDelegate.persistentContainer.viewContext
+            let results = try context.fetch(fetchRequest)
+            for object in results {
+                guard let objectData = object as? NSManagedObject else {continue}
+                context.delete(objectData)
+            }
+        } catch let error {
+            print("Detele all data in \(entity) error :", error)
+        }
+    }
+    
+    func refreshData() {
+        self.tableView.reloadData()
     }
 }
